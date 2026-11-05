@@ -10,7 +10,7 @@ def monitoring_task(
     interval: int = 5,
     process_interval: int = 15,
 ):
-    """Periodically collect system information."""
+    """Periodically collect system, process and network information."""
 
     collector.initialize_cpu_measurement()
 
@@ -22,6 +22,12 @@ def monitoring_task(
 
         collector.save(metrics)
         collector.display(metrics)
+
+        # Collect network information
+        network_data = collector.collect_network()
+
+        collector.save_network(network_data)
+        collector.display_network(network_data)
 
         # Collect process information at a separate interval
         current_time = time.monotonic()

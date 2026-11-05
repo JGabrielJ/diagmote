@@ -1,5 +1,6 @@
 import platform
 import socket
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +18,8 @@ class SystemCollector:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.output_file = self.output_dir / "system_metrics.csv"
+
+        self._network_previous = {}
 
     def initialize_cpu_measurement(self):
         """Initialize CPU measurement in the current thread."""
@@ -64,44 +67,130 @@ class SystemCollector:
             "disk_free_gb": round(disk.free / (1024**3), 2),
         }
 
-    def collect(self) -> dict:
-        """Collect all available system metrics."""
+    def collect_network(self) -> list[dict]:
+        """Collect network interface information and traffic."""
 
-        metrics = {
-            **self.collect_system_info(),
-            **self.collect_cpu(),
-            **self.collect_memory(),
-            **self.collect_disk(),
-        }
+        timestamp = datetime.now().astimezone().isoformat()
+        current_time = time.monotonic()
 
-        return metrics
+        addresses = psutil.net_if_addrs()
+        interface_stats = psutil.net_if_stats()
+        io_counters = psutil.net_io_counters(pernic=True)
 
-    def save(self, metrics: dict):
-        """Append metrics to a CSV file."""
+        interfaces = set(addresses) | set(interface_stats) | set(io_counters)
 
-        dataframe = pd.DataFrame([metrics])
+        network_data = []
+
+        for interface in sorted(interfaces):
+            stats = interface_stats.get(interface)
+            counters = io_counters.get(interface)
+
+            if counters is None:
+                continue
+
+            interface_addresses = addresses.get(interface, [])
+
+            ipv4_addresses = [
+                address.address
+                for address in interface_addresses
+                if address.family == socket.AF_INET
+            ]
+
+            ipv6_addresses = [
+                address.address
+                for address in interface_addresses
+                if address.family == socket.AF_INET6
+            ]
+
+            previous = self._network_previous.get(interface)
+
+            if previous:
+                previous_sent, previous_recv, previous_time = previous
+                elapsed = current_time - previous_time
+
+                if elapsed > 0:
+                    sent_rate = (counters.bytes_sent - previous_sent) / elapsed
+                    recv_rate = (counters.bytes_recv - previous_recv) / elapsed
+                else:
+                    sent_rate = 0.0
+                    recv_rate = 0.0
+            else:
+                sent_rate = 0.0
+                recv_rate = 0.0
+
+            self._network_previous[interface] = (
+                counters.bytes_sent,
+                counters.bytes_recv,
+                current_time,
+            )
+
+            network_data.append(
+                {
+                    "timestamp": timestamp,
+                    "interface": interface,
+                    "is_up": stats.isup if stats else None,
+                    "speed_mbps": stats.speed if stats else None,
+                    "mtu": stats.mtu if stats else None,
+                    "ipv4_addresses": "; ".join(ipv4_addresses),
+                    "ipv6_addresses": "; ".join(ipv6_addresses),
+                    "bytes_sent": counters.bytes_sent,
+                    "bytes_recv": counters.bytes_recv,
+                    "bytes_sent_per_sec": round(sent_rate, 2),
+                    "bytes_recv_per_sec": round(recv_rate, 2),
+                    "packets_sent": counters.packets_sent,
+                    "packets_recv": counters.packets_recv,
+                    "errors_in": counters.errin,
+                    "errors_out": counters.errout,
+                    "drops_in": counters.dropin,
+                    "drops_out": counters.dropout,
+                }
+            )
+
+        return network_data
+
+    def save_network(self, network_data: list[dict]):
+        """Append network information to a CSV file."""
+
+        if not network_data:
+            return
+
+        output_file = self.output_dir / "network_metrics.csv"
+
+        dataframe = pd.DataFrame(network_data)
 
         dataframe.to_csv(
-            self.output_file,
+            output_file,
             mode="a",
-            header=not self.output_file.exists(),
+            header=not output_file.exists(),
             index=False,
         )
 
-    def display(self, metrics: dict):
-        """Display collected metrics."""
+    def display_network(self, network_data: list[dict]):
+        """Display network interface information."""
 
-        print("\n========== DIAGMOTE ==========")
-        print(f"Computer: {metrics['hostname']}")
-        print(f"OS: {metrics['operating_system']} ({metrics['architecture']})")
-        print(f"Processor: {metrics['processor']}")
-        print(f"CPU: {metrics['cpu_percent']}%")
-        print(
-            f"RAM: {metrics['memory_percent']}% "
-            f"({metrics['memory_available_gb']} GB available)"
-        )
-        print(f"Disk: {metrics['disk_percent']}% ({metrics['disk_free_gb']} GB free)")
-        print("==============================")
+        if not network_data:
+            print("\nNo network information available.")
+            return
+
+        print("\n========== NETWORK MONITOR ==========")
+
+        for interface in network_data:
+            status = "UP" if interface["is_up"] else "DOWN"
+
+            print(f"\nInterface: {interface['interface']}")
+            print(f"Status: {status}")
+            print(f"IPv4: {interface['ipv4_addresses'] or 'N/A'}")
+            print(f"IPv6: {interface['ipv6_addresses'] or 'N/A'}")
+
+            print(f"Download: {interface['bytes_recv_per_sec']:.2f} B/s")
+            print(f"Upload: {interface['bytes_sent_per_sec']:.2f} B/s")
+
+            print(
+                f"MTU: {interface['mtu'] or 'N/A'} | "
+                f"Speed: {interface['speed_mbps'] or 'N/A'} Mbps"
+            )
+
+        print("=====================================")
 
     def collect_processes(self) -> list[dict]:
         """Collect information about running processes."""
@@ -178,3 +267,42 @@ class SystemCollector:
             )
 
         print("===================================")
+
+    def collect(self) -> dict:
+        """Collect all available system metrics."""
+
+        metrics = {
+            **self.collect_system_info(),
+            **self.collect_cpu(),
+            **self.collect_memory(),
+            **self.collect_disk(),
+        }
+
+        return metrics
+
+    def save(self, metrics: dict):
+        """Append metrics to a CSV file."""
+
+        dataframe = pd.DataFrame([metrics])
+
+        dataframe.to_csv(
+            self.output_file,
+            mode="a",
+            header=not self.output_file.exists(),
+            index=False,
+        )
+
+    def display(self, metrics: dict):
+        """Display collected metrics."""
+
+        print("\n========== DIAGMOTE ==========")
+        print(f"Computer: {metrics['hostname']}")
+        print(f"OS: {metrics['operating_system']} ({metrics['architecture']})")
+        print(f"Processor: {metrics['processor']}")
+        print(f"CPU: {metrics['cpu_percent']}%")
+        print(
+            f"RAM: {metrics['memory_percent']}% "
+            f"({metrics['memory_available_gb']} GB available)"
+        )
+        print(f"Disk: {metrics['disk_percent']}% ({metrics['disk_free_gb']} GB free)")
+        print("==============================")
