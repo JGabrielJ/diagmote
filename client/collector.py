@@ -26,16 +26,79 @@ class SystemCollector:
 
         psutil.cpu_percent(interval=None)
 
+    def collect_processor_info(self) -> dict:
+        """Collect processor identification and hardware information."""
+
+        processor_name = platform.processor() or None
+
+        # Linux often leaves platform.processor() empty.
+        if platform.system() == "Linux":
+            try:
+                with open("/proc/cpuinfo", encoding="utf-8") as cpuinfo:
+                    for line in cpuinfo:
+                        if line.lower().startswith("model name"):
+                            processor_name = line.split(":", 1)[1].strip()
+                            break
+            except OSError:
+                pass
+
+        frequency = psutil.cpu_freq()
+
+        return {
+            "processor": processor_name or platform.uname().processor or "Unknown",
+            "cpu_physical_cores": psutil.cpu_count(logical=False),
+            "cpu_logical_cores": psutil.cpu_count(logical=True),
+            "cpu_frequency_mhz": (round(frequency.current, 2) if frequency else None),
+        }
+
+    def collect_uptime(self) -> dict:
+        """Collect system boot time and uptime."""
+
+        boot_timestamp = psutil.boot_time()
+        uptime_seconds = max(0, time.time() - boot_timestamp)
+
+        return {
+            "boot_time": datetime.fromtimestamp(boot_timestamp)
+            .astimezone()
+            .isoformat(),
+            "uptime_seconds": round(uptime_seconds, 2),
+        }
+
+    @staticmethod
+    def format_uptime(seconds: float) -> str:
+        """Format uptime in days, hours, minutes and seconds."""
+
+        total_seconds = int(seconds)
+
+        days, remainder = divmod(total_seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        return f"{days}d {hours}h {minutes}min {seconds}s"
+
     def collect_system_info(self) -> dict:
         """Collect general information about the computer."""
+
+        system = platform.system()
+        distribution = system
+
+        if system == "Linux":
+            try:
+                os_info = platform.freedesktop_os_release()
+                distribution = os_info.get("PRETTY_NAME", system)
+            except (AttributeError, OSError):
+                pass
 
         return {
             "timestamp": datetime.now().astimezone().isoformat(),
             "hostname": socket.gethostname(),
-            "operating_system": platform.system(),
+            "operating_system": system,
+            "distribution": distribution,
             "os_version": platform.version(),
+            "os_release": platform.release(),
             "architecture": platform.machine(),
-            "processor": platform.processor(),
+            **self.collect_processor_info(),
+            **self.collect_uptime(),
         }
 
     def collect_cpu(self) -> dict:
@@ -293,16 +356,30 @@ class SystemCollector:
         )
 
     def display(self, metrics: dict):
-        """Display collected metrics."""
+        """Display collected system metrics and general information."""
 
         print("\n========== DIAGMOTE ==========")
         print(f"Computer: {metrics['hostname']}")
-        print(f"OS: {metrics['operating_system']} ({metrics['architecture']})")
-        print(f"Processor: {metrics['processor']}")
-        print(f"CPU: {metrics['cpu_percent']}%")
+        print(f"OS: {metrics['distribution']}")
+        print(f"OS version: {metrics['os_release']}")
+        print(f"Architecture: {metrics['architecture']}")
+
+        print(f"\nProcessor: {metrics['processor']}")
+        print(f"Physical cores: {metrics['cpu_physical_cores']}")
+        print(f"Logical cores: {metrics['cpu_logical_cores']}")
+        print(f"CPU frequency: {metrics['cpu_frequency_mhz'] or 'N/A'} MHz")
+
+        print(f"\nCPU usage: {metrics['cpu_percent']}%")
         print(
-            f"RAM: {metrics['memory_percent']}% "
+            f"RAM usage: {metrics['memory_percent']}% "
             f"({metrics['memory_available_gb']} GB available)"
         )
-        print(f"Disk: {metrics['disk_percent']}% ({metrics['disk_free_gb']} GB free)")
+        print(
+            f"Disk usage: {metrics['disk_percent']}% "
+            f"({metrics['disk_free_gb']} GB free)"
+        )
+
+        print(f"\nBoot time: {metrics['boot_time']}")
+        print(f"Uptime: {self.format_uptime(metrics['uptime_seconds'])}")
+
         print("==============================")
