@@ -228,11 +228,11 @@ cython_debug/
 # SageMath parsed files
 
 # Environments
-console
-dashboard
-data
-server
-tests
+console/
+dashboard/
+data/*
+!data/.gitkeep
+server/
 
 # Spyder project settings
 
