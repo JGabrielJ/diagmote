@@ -179,3 +179,133 @@ def test_monitoring_task_respects_collection_intervals(monkeypatch):
 
     # The monitoring loop waits once per cycle, including the final stop check.
     assert stop_event.wait_calls == [5, 5, 5]
+
+
+# --------------------------------------------------
+#                    Main function
+# --------------------------------------------------
+
+
+def test_main_starts_and_stops_monitoring(monkeypatch, capsys):
+    collector = FakeCollector()
+    network_diagnostics = FakeNetworkDiagnostics()
+
+    class FakeEvent:
+        def __init__(self):
+            self.stop_called = False
+
+        def set(self):
+            self.stop_called = True
+
+    class FakeThread:
+        def __init__(self, target, args, name):
+            self.target = target
+            self.args = args
+            self.name = name
+            self.started = False
+            self.join_calls = []
+
+        def start(self):
+            self.started = True
+
+        def is_alive(self):
+            return False
+
+        def join(self, timeout=None):
+            self.join_calls.append(timeout)
+
+    stop_event = FakeEvent()
+    thread_instances = []
+
+    def fake_thread_factory(target, args, name):
+        thread = FakeThread(target, args, name)
+        thread_instances.append(thread)
+        return thread
+
+    monkeypatch.setattr(main_module, "SystemCollector", lambda: collector)
+    monkeypatch.setattr(
+        main_module,
+        "NetworkDiagnostics",
+        lambda: network_diagnostics,
+    )
+    monkeypatch.setattr(main_module, "Event", lambda: stop_event)
+    monkeypatch.setattr(main_module, "Thread", fake_thread_factory)
+
+    main_module.main()
+
+    thread = thread_instances[0]
+
+    assert thread.target is monitoring_task
+    assert thread.args == (stop_event, collector, network_diagnostics)
+    assert thread.name == "DiagmoteMonitor"
+    assert thread.started is True
+
+    assert stop_event.stop_called is True
+    assert thread.join_calls == [None]
+
+    output = capsys.readouterr().out
+
+    assert "Diagmote System Monitor started." in output
+    assert "Monitoring stopped." in output
+
+
+def test_main_handles_keyboard_interrupt(monkeypatch, capsys):
+    collector = FakeCollector()
+    network_diagnostics = FakeNetworkDiagnostics()
+
+    class FakeEvent:
+        def __init__(self):
+            self.stop_called = False
+
+        def set(self):
+            self.stop_called = True
+
+    class FakeThread:
+        def __init__(self, target, args, name):
+            self.target = target
+            self.args = args
+            self.name = name
+            self.started = False
+            self.join_calls = []
+
+        def start(self):
+            self.started = True
+
+        def is_alive(self):
+            return True
+
+        def join(self, timeout=None):
+            self.join_calls.append(timeout)
+
+            if timeout == 1:
+                raise KeyboardInterrupt
+
+    stop_event = FakeEvent()
+    thread_instances = []
+
+    def fake_thread_factory(target, args, name):
+        thread = FakeThread(target, args, name)
+        thread_instances.append(thread)
+        return thread
+
+    monkeypatch.setattr(main_module, "SystemCollector", lambda: collector)
+    monkeypatch.setattr(
+        main_module,
+        "NetworkDiagnostics",
+        lambda: network_diagnostics,
+    )
+    monkeypatch.setattr(main_module, "Event", lambda: stop_event)
+    monkeypatch.setattr(main_module, "Thread", fake_thread_factory)
+
+    main_module.main()
+
+    thread = thread_instances[0]
+
+    assert thread.started is True
+    assert stop_event.stop_called is True
+    assert thread.join_calls == [1, None]
+
+    output = capsys.readouterr().out
+
+    assert "Stopping Diagmote..." in output
+    assert "Monitoring stopped." in output
