@@ -6,9 +6,9 @@ from client.network_diagnostics import NetworkDiagnostics
 
 
 def monitoring_task(
-    stop_event: Event,
-    collector: SystemCollector,
-    network_diagnostics: NetworkDiagnostics,
+    stop_event,
+    collector,
+    network_diagnostics,
     interval: int = 5,
     process_interval: int = 15,
     connectivity_interval: int = 60,
