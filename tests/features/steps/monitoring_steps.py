@@ -5,6 +5,7 @@ import pandas as pd
 from behave import given, then, when
 
 from client.collector import SystemCollector
+from client.network_diagnostics import NetworkDiagnostics
 
 
 @given("que o agente de monitoramento está configurado")
@@ -143,3 +144,83 @@ def step_verify_saved_network(context):
         assert len(saved_data) == len(context.network_data)
     else:
         assert not csv_path.exists()
+
+
+# --------------------------------------------------
+#              Connectivity diagnostics
+# --------------------------------------------------
+
+
+@given("que o diagnóstico de conectividade está configurado")
+def step_configure_connectivity_diagnostics(context):
+    context.temp_dir = tempfile.TemporaryDirectory()
+    context.output_dir = Path(context.temp_dir.name)
+
+    context.diagnostics = NetworkDiagnostics(output_dir=context.output_dir)
+
+
+@when("uma verificação de conectividade falha")
+def step_connectivity_check_fails(context):
+    def failed_ping(host):
+        return {
+            "timestamp": "2026-11-20T10:00:00",
+            "check_type": "ping",
+            "target": host,
+            "success": False,
+            "latency_ms": None,
+            "packet_loss_percent": 100.0,
+            "details": "0/4 responses received",
+        }
+
+    def successful_dns(hostname):
+        return {
+            "timestamp": "2026-11-20T10:00:00",
+            "check_type": "dns",
+            "target": hostname,
+            "success": True,
+            "latency_ms": 1.5,
+            "packet_loss_percent": None,
+            "details": "DNS resolution successful",
+        }
+
+    def successful_tcp(host, port=443):
+        return {
+            "timestamp": "2026-11-20T10:00:00",
+            "check_type": "tcp",
+            "target": f"{host}:{port}",
+            "success": True,
+            "latency_ms": 10.0,
+            "packet_loss_percent": None,
+            "details": "TCP connection successful",
+        }
+
+    context.diagnostics.ping = failed_ping
+    context.diagnostics.check_dns = successful_dns
+    context.diagnostics.check_tcp = successful_tcp
+
+    context.results = context.diagnostics.run_checks()
+    context.diagnostics.save(context.results)
+
+
+@then("o resultado deve indicar uma falha")
+def step_verify_connectivity_failure(context):
+    assert context.results, "No connectivity results were returned."
+
+    failures = [result for result in context.results if not result["success"]]
+
+    assert failures, "No connectivity failure was detected."
+
+
+@then("a falha deve ser registrada em um arquivo CSV")
+def step_verify_connectivity_failure_csv(context):
+    csv_path = context.output_dir / "connectivity_metrics.csv"
+
+    assert csv_path.exists(), "Connectivity CSV file was not created."
+
+    data = pd.read_csv(csv_path)
+
+    assert not data.empty, "Connectivity CSV file is empty."
+
+    failures = data[data["success"] == False]
+
+    assert not failures.empty, "No failure was recorded in the CSV."
