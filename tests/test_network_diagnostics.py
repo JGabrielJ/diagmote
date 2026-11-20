@@ -2,6 +2,7 @@ import socket
 from contextlib import nullcontext
 from types import SimpleNamespace
 
+import dns.exception
 import pandas as pd
 import pytest
 
@@ -207,54 +208,129 @@ def test_ping_rejects_unsupported_operating_system(diagnostics, monkeypatch):
 
 
 def test_check_dns_success(diagnostics, monkeypatch):
+    times = iter([10.0, 10.0125])
+
     monkeypatch.setattr(
-        diagnostics_module.socket,
-        "getaddrinfo",
-        lambda *args, **kwargs: [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.10", 0)),
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.10", 0)),
-            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2001:db8::1", 0, 0, 0)),
-        ],
+        diagnostics_module.time,
+        "perf_counter",
+        lambda: next(times),
+    )
+
+    class FakeResolver:
+        timeout = None
+
+        def resolve_name(self, hostname, family, lifetime):
+            assert hostname == "example.com"
+            assert family == socket.AF_UNSPEC
+            assert lifetime == 5.0
+
+            return SimpleNamespace(
+                addresses=lambda: iter(
+                    [
+                        "192.0.2.10",
+                        "2001:db8::1",
+                        "192.0.2.10",
+                    ]
+                )
+            )
+
+    resolver = FakeResolver()
+
+    monkeypatch.setattr(
+        diagnostics_module.dns.resolver,
+        "Resolver",
+        lambda: resolver,
     )
 
     result = diagnostics.check_dns("example.com")
 
+    assert resolver.timeout == 2.0
     assert result["check_type"] == "dns"
     assert result["target"] == "example.com"
     assert result["success"] is True
-    assert result["latency_ms"] is None
+    assert result["latency_ms"] == 12.5
     assert result["packet_loss_percent"] is None
     assert result["details"] == "192.0.2.10, 2001:db8::1"
+    assert "timestamp" in result
 
 
 def test_check_dns_failure(diagnostics, monkeypatch):
+    class FakeResolver:
+        timeout = None
+
+        def resolve_name(self, *args, **kwargs):
+            raise dns.exception.DNSException("DNS resolution failed.")
+
     monkeypatch.setattr(
-        diagnostics_module.socket,
-        "getaddrinfo",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            socket.gaierror("Name or service not known")
-        ),
+        diagnostics_module.dns.resolver,
+        "Resolver",
+        FakeResolver,
     )
 
     result = diagnostics.check_dns("invalid.example")
 
     assert result["success"] is False
-    assert result["latency_ms"] is None
+    assert result["latency_ms"] is not None
     assert result["packet_loss_percent"] is None
-    assert "Name or service not known" in result["details"]
+    assert "DNS resolution failed." in result["details"]
+
+
+def test_check_dns_timeout(diagnostics, monkeypatch):
+    class FakeResolver:
+        timeout = None
+
+        def resolve_name(self, *args, **kwargs):
+            raise dns.exception.Timeout("DNS query timed out.")
+
+    monkeypatch.setattr(
+        diagnostics_module.dns.resolver,
+        "Resolver",
+        FakeResolver,
+    )
+
+    result = diagnostics.check_dns("example.com", timeout=1, lifetime=2)
+
+    assert result["success"] is False
+    assert result["latency_ms"] is not None
+    assert "timed out" in result["details"]
 
 
 def test_check_dns_without_returned_addresses(diagnostics, monkeypatch):
+    class FakeResolver:
+        timeout = None
+
+        def resolve_name(self, *args, **kwargs):
+            return SimpleNamespace(addresses=lambda: iter([]))
+
     monkeypatch.setattr(
-        diagnostics_module.socket,
-        "getaddrinfo",
-        lambda *args, **kwargs: [],
+        diagnostics_module.dns.resolver,
+        "Resolver",
+        FakeResolver,
     )
 
     result = diagnostics.check_dns("example.com")
 
     assert result["success"] is False
+    assert result["latency_ms"] is not None
     assert result["details"] == "No addresses returned."
+
+
+@pytest.mark.parametrize(
+    ("timeout", "lifetime"),
+    [
+        (0, 5),
+        (-1, 5),
+        (2, 0),
+        (2, -1),
+    ],
+)
+def test_check_dns_rejects_invalid_arguments(diagnostics, timeout, lifetime):
+    with pytest.raises(ValueError):
+        diagnostics.check_dns(
+            "example.com",
+            timeout=timeout,
+            lifetime=lifetime,
+        )
 
 
 # --------------------------------------------------

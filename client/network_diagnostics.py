@@ -6,6 +6,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import dns.exception
+import dns.resolver
 import pandas as pd
 
 
@@ -91,36 +93,48 @@ class NetworkDiagnostics:
             "details": (f"{successful_probes}/{count} responses received"),
         }
 
-    def check_dns(self, hostname: str) -> dict:
+    def check_dns(
+        self,
+        hostname: str,
+        timeout: float = 2.0,
+        lifetime: float = 5.0,
+    ) -> dict:
         """Check whether a hostname can be resolved through DNS."""
 
+        if timeout <= 0 or lifetime <= 0:
+            raise ValueError("Timeout and lifetime must be positive.")
+
+        start = time.perf_counter()
+
         try:
-            addresses = socket.getaddrinfo(
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = timeout
+
+            answers = resolver.resolve_name(
                 hostname,
-                None,
                 family=socket.AF_UNSPEC,
-                type=socket.SOCK_STREAM,
+                lifetime=lifetime,
             )
 
-            resolved_addresses: list[str] = sorted(
-                {str(address[4][0]) for address in addresses}
-            )
+            resolved_addresses = sorted(set(answers.addresses()))
 
             success = bool(resolved_addresses)
             details = (
-                ", ".join(resolved_addresses) if success else ("No addresses returned.")
+                ", ".join(resolved_addresses) if success else "No addresses returned."
             )
 
-        except socket.gaierror as error:
+        except dns.exception.DNSException as error:
             success = False
             details = str(error)
+
+        latency = round((time.perf_counter() - start) * 1000, 2)
 
         return {
             "timestamp": datetime.now().astimezone().isoformat(),
             "check_type": "dns",
             "target": hostname,
             "success": success,
-            "latency_ms": None,
+            "latency_ms": latency,
             "packet_loss_percent": None,
             "details": details,
         }
