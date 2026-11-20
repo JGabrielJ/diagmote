@@ -16,6 +16,11 @@ def step_configure_monitoring_agent(context):
     context.collector = SystemCollector(output_dir=context.output_dir)
 
 
+# --------------------------------------------------
+#                 Metrics monitoring
+# --------------------------------------------------
+
+
 @when("um ciclo de coleta de métricas é executado")
 def step_execute_monitoring_cycle(context):
     context.metrics = context.collector.collect()
@@ -39,3 +44,102 @@ def step_verify_saved_metrics(context):
     saved_data = pd.read_csv(csv_path)
 
     assert not saved_data.empty, "O arquivo CSV está vazio."
+
+
+# --------------------------------------------------
+#                 Process monitoring
+# --------------------------------------------------
+
+
+@when("as informações dos processos em execução são coletadas")
+def step_collect_processes(context):
+    context.processes = context.collector.collect_processes()
+
+    context.collector.save_processes(context.processes)
+
+
+@then("a coleta deve retornar uma lista de processos")
+def step_verify_processes(context):
+    assert isinstance(context.processes, list)
+
+    required_fields = {
+        "timestamp",
+        "pid",
+        "name",
+        "status",
+        "cpu_percent",
+        "memory_percent",
+        "memory_mb",
+    }
+
+    for process in context.processes:
+        assert required_fields.issubset(process.keys())
+
+
+@then(
+    "as informações dos processos disponíveis devem ser armazenadas em um arquivo CSV"
+)
+def step_verify_saved_processes(context):
+    csv_path = context.output_dir / "process_metrics.csv"
+
+    if context.processes:
+        assert csv_path.exists(), "O arquivo CSV não foi criado."
+
+        saved_data = pd.read_csv(csv_path)
+
+        assert not saved_data.empty
+        assert "pid" in saved_data.columns
+        assert "name" in saved_data.columns
+        assert len(saved_data) == len(context.processes)
+    else:
+        assert not csv_path.exists()
+
+
+# --------------------------------------------------
+#                  Network monitoring
+# --------------------------------------------------
+
+
+@when("as informações das interfaces de rede são coletadas")
+def step_collect_network(context):
+    context.network_data = context.collector.collect_network()
+
+    context.collector.save_network(context.network_data)
+
+
+@then("a coleta deve retornar uma lista de interfaces de rede")
+def step_verify_network(context):
+    assert isinstance(context.network_data, list)
+
+    required_fields = {
+        "timestamp",
+        "interface",
+        "is_up",
+        "ipv4_addresses",
+        "ipv6_addresses",
+        "bytes_sent",
+        "bytes_recv",
+        "bytes_sent_per_sec",
+        "bytes_recv_per_sec",
+    }
+
+    for interface in context.network_data:
+        assert required_fields.issubset(interface.keys())
+
+
+@then("os dados das interfaces disponíveis devem ser armazenados em um arquivo CSV")
+def step_verify_saved_network(context):
+    csv_path = context.output_dir / "network_metrics.csv"
+
+    if context.network_data:
+        assert csv_path.exists(), "O arquivo CSV não foi criado."
+
+        saved_data = pd.read_csv(csv_path)
+
+        assert not saved_data.empty
+        assert "interface" in saved_data.columns
+        assert "bytes_sent" in saved_data.columns
+        assert "bytes_recv" in saved_data.columns
+        assert len(saved_data) == len(context.network_data)
+    else:
+        assert not csv_path.exists()

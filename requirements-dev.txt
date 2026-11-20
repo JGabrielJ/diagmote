@@ -1,5 +1,3 @@
 -r requirements.txt
 behave
 pytest
-
-# LOCAL: pip-tools
