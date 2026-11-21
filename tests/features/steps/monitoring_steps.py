@@ -128,7 +128,9 @@ def step_verify_network(context):
         assert required_fields.issubset(interface.keys())
 
 
-@then("os dados das interfaces disponíveis devem ser armazenados em um arquivo CSV")
+@then(
+    "os dados das interfaces disponíveis devem ser armazenados em um arquivo CSV"
+)
 def step_verify_saved_network(context):
     csv_path = context.output_dir / "network_metrics.csv"
 

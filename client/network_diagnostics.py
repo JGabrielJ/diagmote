@@ -57,7 +57,9 @@ class NetworkDiagnostics:
             except subprocess.TimeoutExpired:
                 continue
             except FileNotFoundError:
-                raise RuntimeError("The ping utility was not found on this system.")
+                raise RuntimeError(
+                    "The ping utility was not found on this system."
+                )
 
             elapsed = (time.monotonic() - start) * 1000
 
@@ -120,7 +122,9 @@ class NetworkDiagnostics:
 
             success = bool(resolved_addresses)
             details = (
-                ", ".join(resolved_addresses) if success else "No addresses returned."
+                ", ".join(resolved_addresses)
+                if success
+                else "No addresses returned."
             )
 
         except dns.exception.DNSException as error:

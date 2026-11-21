@@ -45,10 +45,14 @@ class SystemCollector:
         frequency = psutil.cpu_freq()
 
         return {
-            "processor": processor_name or platform.uname().processor or "Unknown",
+            "processor": processor_name
+            or platform.uname().processor
+            or "Unknown",
             "cpu_physical_cores": psutil.cpu_count(logical=False),
             "cpu_logical_cores": psutil.cpu_count(logical=True),
-            "cpu_frequency_mhz": (round(frequency.current, 2) if frequency else None),
+            "cpu_frequency_mhz": (
+                round(frequency.current, 2) if frequency else None
+            ),
         }
 
     def collect_uptime(self) -> dict:
