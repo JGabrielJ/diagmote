@@ -121,17 +121,32 @@ def test_monitoring_task_collects_and_saves_metrics(monkeypatch):
     assert collector.calls.count("collect_network") == 1
     assert collector.calls.count("collect_processes") == 1
 
-    assert ("save", {"cpu_percent": 25.0, "memory_percent": 50.0}) in collector.calls
-    assert ("display", {"cpu_percent": 25.0, "memory_percent": 50.0}) in collector.calls
+    assert (
+        "save",
+        {"cpu_percent": 25.0, "memory_percent": 50.0},
+    ) in collector.calls
+    assert (
+        "display",
+        {"cpu_percent": 25.0, "memory_percent": 50.0},
+    ) in collector.calls
 
-    assert ("save_network", {"bytes_sent": 1000, "bytes_recv": 2000}) in collector.calls
+    assert (
+        "save_network",
+        {"bytes_sent": 1000, "bytes_recv": 2000},
+    ) in collector.calls
     assert (
         "display_network",
         {"bytes_sent": 1000, "bytes_recv": 2000},
     ) in collector.calls
 
-    assert ("save_processes", [{"pid": 1234, "name": "example"}]) in collector.calls
-    assert ("display_processes", [{"pid": 1234, "name": "example"}]) in collector.calls
+    assert (
+        "save_processes",
+        [{"pid": 1234, "name": "example"}],
+    ) in collector.calls
+    assert (
+        "display_processes",
+        [{"pid": 1234, "name": "example"}],
+    ) in collector.calls
 
     assert network_diagnostics.calls == [
         "run_checks",

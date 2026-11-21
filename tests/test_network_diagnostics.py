@@ -202,6 +202,55 @@ def test_ping_rejects_unsupported_operating_system(diagnostics, monkeypatch):
         diagnostics.ping("1.1.1.1", count=1)
 
 
+@pytest.mark.parametrize(
+    ("system", "expected_command"),
+    [
+        ("Windows", ["ping", "-n", "1", "-w", "2000"]),
+        ("Darwin", ["ping", "-c", "1", "-W", "2000"]),
+    ],
+)
+def test_ping_uses_correct_command_for_operating_system(
+    diagnostics,
+    monkeypatch,
+    system,
+    expected_command,
+):
+    monkeypatch.setattr(
+        diagnostics_module.platform,
+        "system",
+        lambda: system,
+    )
+
+    def fake_run(command, **kwargs):
+        assert command == [*expected_command, "example.com"]
+
+        return SimpleNamespace(
+            returncode=0,
+            stdout="64 bytes from example.com",
+            stderr="",
+        )
+
+    monkeypatch.setattr(
+        diagnostics_module.subprocess,
+        "run",
+        fake_run,
+    )
+
+    times = iter([10.0, 10.0125])
+
+    monkeypatch.setattr(
+        diagnostics_module,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(times)),
+    )
+
+    result = diagnostics.ping("example.com", count=1, timeout=2)
+
+    assert result["success"] is True
+    assert result["packet_loss_percent"] == 0.0
+    assert result["latency_ms"] == 12.5
+
+
 # --------------------------------------------------
 #                         DNS
 # --------------------------------------------------
@@ -367,7 +416,9 @@ def test_check_tcp_failure(diagnostics, monkeypatch):
     monkeypatch.setattr(
         diagnostics_module.socket,
         "create_connection",
-        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("Connection refused")),
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            OSError("Connection refused")
+        ),
     )
 
     result = diagnostics.check_tcp("example.com", port=443)
