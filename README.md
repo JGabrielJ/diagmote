@@ -18,7 +18,7 @@
 [Development](#development-progress) •
 [Architecture](#planned-architecture) •
 [Privacy & Security](#privacy--security) •
-[License](#credits--license)
+[License](#license)
 
 </div>
 
@@ -30,14 +30,14 @@ computer resources, diagnose network connectivity and provide
 tools for remote technical assistance.
 
 The project aims to simplify computer monitoring and troubleshooting
-through a modular architecture, allowing technicians to inspect
-system conditions and identify potential problemas efficiently.
+through a modular architecture, helping technicians inspect system
+conditions and identify potential problems.
 
-Diamote is currently in its early development stage. Its initial
+Diagmote is currently in its early development stage. Its initial
 prototype focuses on local system monitoring, process inspection
-and active network diagnostics. Client-server communication, a
-graphical dashboard and remote support capabilities are planned
-for future development.
+and active network diagnostics. Client-server communication, desktop
+applications for users and technicians, and remote support capabilities
+are planned for future development.
 
 ## Features
 
@@ -64,9 +64,11 @@ for future development.
   - ICMP ping connectivity tests.
   - DNS hostname resolution.
   - TCP connection verification.
-  - Connection latency and packet loss measurements.
+  - Ping latency and packet loss measurements.
 - **Data Collection**
-  - Automatic collection at configurable intervals.
+  - Periodic collection at defined intervals: system and network metrics
+    every 5 seconds, process metrics every 15 seconds, and connectivity
+    diagnostics every 60 seconds.
   - CSV-based metric storage.
   - Console output for diagnostic information.
 - **Automated Testing**
@@ -77,9 +79,10 @@ for future development.
 ### Planned Features
 
 - Client-server architecture.
-- Remote computer management.
-- Graphical management console.
-- Interactive monitoring dashboard.
+- Desktop application for monitored computers (Diagmote Agent).
+- Remote web service for communication and session management (Diagmote Server).
+- Desktop application for technicians (Diagmote Console).
+- Integrated monitoring dashboard.
 - Historical metrics and diagnostic reports.
 - Authentication and encrypted communication.
 - Permission-controlled remote operations.
@@ -135,9 +138,8 @@ Start the monitoring prototype:
 python -m client.main
 ```
 
-The application periodically collects system metrics, process
-information and network data, while performing active connectivity
-diagnostics.
+The prototype periodically collects system metrics, process information
+and network data, while performing active connectivity diagnostics.
 
 ### Data Storage
 
@@ -151,7 +153,9 @@ Collected information is automatically stored in the `data/` directory:
 | connectivity_metrics.csv | Active network diagnostic results.                    |
 
 These files are generated locally and are not automatically uploaded
-to any remote server.
+to any remote server. They may contain machine-specific information,
+such as hostnames, local IP addresses, process names and system details.
+Review their contents before sharing them.
 
 ## Development Progress
 
@@ -208,21 +212,30 @@ and continuous integration.
 
 ## Planned Architecture
 
-Diagmote is intended to evolve into a modular platform composed of three
-main components:
+The planned architecture consists of two desktop applications connected
+through a remote server:
 
-- **Diagmote Agent**
-  - Runs on monitored computers.
+- **Diagmote Agent — monitored computer**
+  - A desktop application installed and run by the person receiving support.
   - Collects system and network information.
-  - Executes explicitly authorized diagnostic operations.
-- **Diagmote Server**
+  - Presents session information and requests the user's consent.
+  - Performs only explicitly authorized diagnostic or support operations.
+- **Diagmote Server — remote service**
+  - A web service responsible for communication between Agent and Console.
   - Receives and processes collected information.
-  - Manages authenticated client connections.
-  - Handles diagnostic requests and communication.
-- **Diagmote Console**
-  - Provides the technician-facing interface.
-  - Manages monitored computers.
-  - Presents diagnostic information and monitoring dashboards.
+  - Manages authentication, connections and support sessions.
+  - Routes authorized requests between the desktop applications.
+  - Flask is the current framework choice for its planned implementation.
+- **Diagmote Console — technician's computer**
+  - A desktop application used by the support technician.
+  - Connects to the Server to manage monitored computers and sessions.
+  - Provides diagnostic and support tools.
+  - Includes the **Dashboard** as an internal module for metrics, charts and
+    historical information.
+
+The Agent and Console are planned as separate desktop applications. The
+Server will operate independently as a remotely hosted service; the Dashboard
+will be part of the Console rather than a separate application.
 
 ## Privacy & Security
 
@@ -233,18 +246,22 @@ in CSV files. It does not currently implement remote client-server
 communication, authentication or encrypted data transmission.
 
 Future remote capabilities are intended to follow security-oriented
-principles, including authenticated communication, explicit authorization,
+principles, including authenticated communication, explicit user consent,
 restricted operations and audit logging.
 
 **Diagmote is an experimental prototype and should not yet be deployed as**
 **a remote administration or production support solution.**
 
-## Credits & License
+## License
 
-- Developed and maintaned by [Gabriel Jacinto](https://github.com/JGabrielJ).
-
-This project is intended to be distributed as open-source software. See the
-[`LICENSE`](./LICENSE) file for the applicable terms of use, modification
-and redistribution.
+Diagmote is distributed under the terms of the **GNU Affero General Public**
+**License v3.0 (AGPL-3.0)**. You may use, study, modify and redistribute the
+software under the conditions described in the [`LICENSE`](./LICENSE) file.
 
 > Copyright (c) 2026 Gabriel Jacinto.
+
+## Contact
+
+For project questions, bug reports and feature requests, please use
+[GitHub Issues](https://github.com/JGabrielJ/diagmote/issues) or visit
+the [project owner's GitHub profile](https://github.com/JGabrielJ).

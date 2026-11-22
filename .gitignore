@@ -229,7 +229,6 @@ cython_debug/
 
 # Environments
 console/
-dashboard/
 data/*
 !data/.gitkeep
 server/
