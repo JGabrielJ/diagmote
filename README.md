@@ -2,11 +2,10 @@
 
 ![Diagmote Banner](./assets/readme/diagmote-banner.svg)
 
-![GitHub License](https://img.shields.io/github/license/JGabrielJ/diagmote?style=plastic&logo=gnu)
-![GitHub Last Commit](https://img.shields.io/github/last-commit/JGabrielJ/diagmote?style=plastic)
-![GitHub Commit Activity](https://img.shields.io/github/commit-activity/m/JGabrielJ/diagmote?style=plastic)
-![GitHub Top Language](https://img.shields.io/github/languages/top/JGabrielJ/diagmote?style=plastic)
-![GitHub Created At](https://img.shields.io/github/created-at/JGabrielJ/diagmote?style=social)
+![GitHub License](https://img.shields.io/github/license/JGabrielJ/diagmote?style=plastic&logo=gnu&labelColor=navy&color=cadetblue)
+![GitHub Created At](https://img.shields.io/github/created-at/JGabrielJ/diagmote?style=plastic&labelColor=ghostwhite&color=goldenrod)
+![GitHub Last Commit](https://img.shields.io/github/last-commit/JGabrielJ/diagmote?style=plastic&labelColor=ghostwhite&color=darkred)
+![GitHub Commit Activity](https://img.shields.io/github/commit-activity/m/JGabrielJ/diagmote?style=plastic&labelColor=ghostwhite&color=darkgreen)
 ![GitHub Forks](https://img.shields.io/github/forks/JGabrielJ/diagmote?style=social)
 ![GitHub Repo Stars](https://img.shields.io/github/stars/JGabrielJ/diagmote?style=social)
 
@@ -18,7 +17,8 @@
 [Development](#development-progress) •
 [Architecture](#planned-architecture) •
 [Privacy & Security](#privacy--security) •
-[License](#license)
+[License](#license) •
+[Contact](#contact)
 
 </div>
 
